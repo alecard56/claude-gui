@@ -87,24 +87,20 @@ export class AuthenticationModel {
     this.error = null;
     
     try {
-      // Make a request to the models endpoint to validate the key
-      const response = await axios.get(
-        'https://api.anthropic.com/v1/models',
-        {
-          headers: {
-            'x-api-key': key,
-            'anthropic-version': '2023-06-01'
-          }
-        }
-      );
+      // Make a request via the main process to validate the key
+      const result = await window.electronAPI.validateApiKey(key);
       
       if (debug_mode) {
-        console.log('API key validation response:', response.status);
+        console.log('API key validation response:', result);
       }
       
       runInAction(() => {
         this.isAuthenticating = false;
-        this.isAuthenticated = response.status === 200;
+        this.isAuthenticated = result.success;
+        
+        if (!result.success) {
+          this.error = result.error || 'Invalid API key or connection error';
+        }
       });
       
       return this.isAuthenticated;
@@ -116,7 +112,7 @@ export class AuthenticationModel {
       runInAction(() => {
         this.isAuthenticating = false;
         this.isAuthenticated = false;
-        this.error = 'Invalid API key or connection error';
+        this.error = 'Error validating API key: ' + (error instanceof Error ? error.message : 'Unknown error');
       });
       
       return false;

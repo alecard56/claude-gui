@@ -168,45 +168,40 @@ export class APIModel {
         console.log('API request payload:', payload);
       }
       
-      // Make the API request
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        payload,
-        {
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-          signal: this.abortController.signal,
-        }
-      );
+      // Make the API request through the main process
+      const result = await window.electronAPI.sendPrompt(apiKey, payload);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'API request failed');
+      }
+      
+      const response = result.data;
       
       if (debug_mode) {
-        console.log('API response:', response.data);
+        console.log('API response:', response);
       }
       
       // Record token usage
-      if (response.data.usage) {
+      if (response.usage) {
         this.rootStore.usageStore.recordUsage(
-          response.data.usage.input_tokens,
-          response.data.usage.output_tokens,
+          response.usage.input_tokens,
+          response.usage.output_tokens,
           requestParams.model
         );
       }
       
       // Format the response
       const formattedResponse: APIResponse = {
-        id: response.data.id,
-        type: response.data.type,
-        role: response.data.content[0].type,
-        content: response.data.content[0].text,
-        model: response.data.model,
-        stopReason: response.data.stop_reason,
-        stopSequence: response.data.stop_sequence,
+        id: response.id,
+        type: response.type,
+        role: response.content[0].type,
+        content: response.content[0].text,
+        model: response.model,
+        stopReason: response.stop_reason,
+        stopSequence: response.stop_sequence,
         usage: {
-          inputTokens: response.data.usage.input_tokens,
-          outputTokens: response.data.usage.output_tokens,
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
         },
       };
       
@@ -217,23 +212,14 @@ export class APIModel {
       
       return formattedResponse;
     } catch (error) {
-      if (axios.isCancel(error)) {
-        if (debug_mode) {
-          console.log('Request was cancelled');
-        }
-      } else {
-        console.error('API request error:', error);
-        
-        if (debug_mode) {
-          console.error('API error details:', error);
-        }
-        
-        runInAction(() => {
-          this.error = error instanceof Error ? error.message : 'Unknown error';
-        });
+      console.error('API request error:', error);
+      
+      if (debug_mode) {
+        console.error('API error details:', error);
       }
       
       runInAction(() => {
+        this.error = error instanceof Error ? error.message : 'Unknown error';
         this.isLoading = false;
       });
       

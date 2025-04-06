@@ -44,6 +44,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSetting: (key: string, value: any) => 
     ipcRenderer.invoke('set-setting', key, value),
   
+  // API methods
+  validateApiKey: (apiKey: string) => 
+    ipcRenderer.invoke('validate-api-key', apiKey),
+  
+  sendPrompt: (apiKey: string, payload: any) => 
+    ipcRenderer.invoke('send-prompt', apiKey, payload),
+    
   // Usage tracking methods
   recordUsage: (usageData: any) => 
     ipcRenderer.invoke('record-usage', usageData),

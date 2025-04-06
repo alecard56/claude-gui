@@ -10,9 +10,18 @@ import * as path from 'path';
 import * as url from 'url';
 import log from 'electron-log';
 import Store from 'electron-store';
+import axios from 'axios';
+
+// Define tipos para la configuración de la aplicación
+interface StoreSchema {
+  'auth.profiles': Record<string, any>;
+  'auth.keys': Record<string, string>;
+  'auth.activeProfileId': string;
+  [key: string]: any;
+}
 
 // Initialize the store
-const store = new Store();
+const store = new Store<StoreSchema>();
 
 // Configure logging
 log.transports.file.level = 'info';
@@ -120,9 +129,10 @@ ipcMain.handle('store-api-key', (_, profileId: string, apiKey: string) => {
     store.set('auth.activeProfileId', profileId);
     
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     log.error('Failed to store API key:', error);
-    return { success: false, error: (error as Error).message };
+    return { success: false, error: errorMessage };
   }
 });
 
@@ -160,4 +170,64 @@ ipcMain.handle('get-active-profile', () => {
   }
 });
 
-log.info('Main process initialized');
+// Add API request handlers
+ipcMain.handle('validate-api-key', async (_, apiKey: string) => {
+  try {
+    const response = await axios.get(
+      'https://api.anthropic.com/v1/models',
+      {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        }
+      }
+    );
+    
+    return { success: true, status: response.status, data: response.data };
+  } catch (error: unknown) {
+    log.error('API key validation error:', error);
+    
+    // Extraer información de error segura de tipo
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Comprobación de tipo segura para acceder a error.response
+    const axiosError = error as { response?: { status?: number; data?: any } };
+    
+    return { 
+      success: false, 
+      error: errorMessage,
+      status: axiosError.response?.status
+    };
+  }
+});
+
+ipcMain.handle('send-prompt', async (_, apiKey: string, payload: any) => {
+  try {
+    const response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      payload,
+      {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        }
+      }
+    );
+    
+    return { success: true, data: response.data };
+  } catch (error: unknown) {
+    log.error('API request error:', error);
+    
+    // Extraer información de error segura de tipo
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Comprobación de tipo segura para acceder a error.response
+    const axiosError = error as { response?: { status?: number; data?: any } };
+    
+    return { 
+      success: false, 
+      error: errorMessage,
+      status: axiosError.response?.status,
+      data: axiosError.response?.data
+    };
+  }
+});
