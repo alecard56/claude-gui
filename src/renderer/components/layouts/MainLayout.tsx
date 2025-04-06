@@ -23,15 +23,23 @@ import {
 import { HamburgerIcon, MoonIcon, SunIcon } from '@chakra-ui/icons';
 import { observer } from 'mobx-react-lite';
 import { useStore } from '../../../utils/StoreContext';
-
-// Placeholder components - replace with actual components when available
-const ConversationListView = () => <Box p={4}>Conversation List Placeholder</Box>;
-const PromptView = () => <Box p={4}>Prompt View Placeholder</Box>;
-const ResponseView = () => <Box p={4}>Response View Placeholder</Box>;
+import PromptView from '../views/PromptView';
+import ResponseView from '../views/ResponseView';
+import ConversationListView from '../views/ConversationListView';
+import APISettingsModal from '../modals/APISettingsModal';
 
 const MainLayout: React.FC = () => {
   const { colorMode, toggleColorMode } = useColorMode();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { 
+    isOpen: isSidebarOpen, 
+    onOpen: onSidebarOpen, 
+    onClose: onSidebarClose 
+  } = useDisclosure();
+  const {
+    isOpen: isSettingsOpen,
+    onOpen: onSettingsOpen,
+    onClose: onSettingsClose
+  } = useDisclosure();
   const { authStore } = useStore();
 
   return (
@@ -51,7 +59,7 @@ const MainLayout: React.FC = () => {
           <IconButton
             aria-label="Open Menu"
             icon={<HamburgerIcon />}
-            onClick={onOpen}
+            onClick={onSidebarOpen}
             display={{ base: 'flex', md: 'none' }}
             mr={2}
           />
@@ -82,7 +90,7 @@ const MainLayout: React.FC = () => {
         </Box>
 
         {/* Sidebar - Mobile */}
-        <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
+        <Drawer isOpen={isSidebarOpen} placement="left" onClose={onSidebarClose}>
           <DrawerOverlay />
           <DrawerContent>
             <DrawerCloseButton />
@@ -103,7 +111,7 @@ const MainLayout: React.FC = () => {
         >
           {/* Prompt Area */}
           <Box h="40%" overflowY="auto" p={4} borderBottom="1px solid" borderColor={colorMode === 'dark' ? 'gray.600' : 'gray.200'}>
-            <PromptView />
+            <PromptView onSettingsClick={onSettingsOpen} />
           </Box>
 
           {/* Response Area */}
@@ -112,6 +120,9 @@ const MainLayout: React.FC = () => {
           </Box>
         </Flex>
       </Flex>
+      
+      {/* API Settings Modal */}
+      <APISettingsModal isOpen={isSettingsOpen} onClose={onSettingsClose} />
     </Flex>
   );
 };
