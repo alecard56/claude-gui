@@ -3,7 +3,7 @@
 // Usage: Used by Jest to configure and run all application tests
 // Contains: Test environment setup, mock configurations, and utility functions
 // Dependencies: Jest, React Testing Library, Mock implementations
-// Iteration: 1
+// Iteration: 3
 
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
@@ -12,63 +12,90 @@ import { RootStore } from '../models/RootStore';
 import { StoreProvider } from '../utils/StoreContext';
 import { configure, runInAction } from 'mobx';
 
-// Configure MobX for non-decorator usage in tests
+// Configure MobX for tests
+// This sets more permissive settings for tests than we'd use in production
 configure({
-  useProxies: "always",
-  enforceActions: "never",
+  enforceActions: "never",  // Don't require actions for state modifications in tests
+  useProxies: "always",     // Use Proxy objects for better compatibility
+  isolateGlobalState: true, // Isolate global state for tests
+  disableErrorBoundaries: false, // Keep error boundaries for better error reporting
 });
 
-// Configure MobX
-import { configure } from 'mobx';
-
-// Use non-decorator syntax for MobX in tests
-configure({
-  useProxies: "always",
-  enforceActions: "never",
+// Mock functions for the electronAPI
+const mockStoreApiKey = jest.fn().mockResolvedValue({ success: true });
+const mockGetApiKey = jest.fn().mockResolvedValue('mock-api-key');
+const mockGetActiveProfile = jest.fn().mockResolvedValue({
+  id: 'mock-profile-id',
+  name: 'Test Profile',
+  keyLastDigits: '1234',
+  created: new Date(),
+  lastUsed: new Date(),
 });
-  storeApiKey: jest.fn().mockResolvedValue({ success: true }),
-  getApiKey: jest.fn().mockResolvedValue('mock-api-key'),
-  getActiveProfile: jest.fn().mockResolvedValue({
-    id: 'mock-profile-id',
-    name: 'Test Profile',
-    keyLastDigits: '1234',
-    created: new Date(),
-    lastUsed: new Date(),
-  }),
-  getAppPath: jest.fn().mockResolvedValue('/mock/path'),
-  saveConversation: jest.fn().mockResolvedValue({ success: true }),
-  getConversations: jest.fn().mockResolvedValue([]),
-  getConversationById: jest.fn().mockResolvedValue(null),
-  deleteConversation: jest.fn().mockResolvedValue({ success: true }),
-  getSetting: jest.fn().mockResolvedValue(null),
-  setSetting: jest.fn().mockResolvedValue({ success: true }),
-  recordUsage: jest.fn().mockResolvedValue({ success: true }),
-  getUsageStats: jest.fn().mockResolvedValue(null),
-  validateApiKey: jest.fn().mockResolvedValue({ success: true, status: 200 }),
-  sendPrompt: jest.fn().mockResolvedValue({ 
-    success: true, 
-    data: {
-      id: 'mock-response-id',
-      type: 'text',
-      content: [{ type: 'text', text: 'This is a mock response from Claude API.' }],
-      model: 'claude-3-opus-20240229',
-      stop_reason: null,
-      stop_sequence: null,
-      usage: {
-        input_tokens: 10,
-        output_tokens: 20,
-      }
-    }
-  }),
-};
+const mockGetAppPath = jest.fn().mockResolvedValue('/mock/path');
+const mockSaveConversation = jest.fn().mockResolvedValue({ success: true });
+const mockGetConversations = jest.fn().mockResolvedValue([]);
+const mockGetConversationById = jest.fn().mockResolvedValue(null);
+const mockDeleteConversation = jest.fn().mockResolvedValue({ success: true });
+const mockGetSetting = jest.fn().mockResolvedValue(null);
+const mockSetSetting = jest.fn().mockResolvedValue({ success: true });
+const mockRecordUsage = jest.fn().mockResolvedValue({ success: true });
+const mockGetUsageStats = jest.fn().mockResolvedValue(null);
+const mockValidateApiKey = jest.fn().mockResolvedValue({ success: true, status: 200 });
+const mockSendPrompt = jest.fn().mockResolvedValue({
+  success: true,
+  data: {
+    id: 'mock-response-id',
+    type: 'text',
+    content: [{ type: 'text', text: 'This is a mock response from Claude API.' }],
+    model: 'claude-3-opus-20240229',
+    stop_reason: null,
+    stop_sequence: null,
+    usage: {
+      input_tokens: 10,
+      output_tokens: 20,
+    },
+  },
+});
 
-// Create a customized render function with providers
+// Setup window.electronAPI
+beforeAll(() => {
+  // Define electronAPI on window if it doesn't exist
+  if (!window.electronAPI) {
+    Object.defineProperty(window, 'electronAPI', {
+      value: {
+        storeApiKey: mockStoreApiKey,
+        getApiKey: mockGetApiKey,
+        getActiveProfile: mockGetActiveProfile,
+        getAppPath: mockGetAppPath,
+        saveConversation: mockSaveConversation,
+        getConversations: mockGetConversations,
+        getConversationById: mockGetConversationById,
+        deleteConversation: mockDeleteConversation,
+        getSetting: mockGetSetting,
+        setSetting: mockSetSetting,
+        recordUsage: mockRecordUsage,
+        getUsageStats: mockGetUsageStats,
+        validateApiKey: mockValidateApiKey,
+        sendPrompt: mockSendPrompt,
+      },
+      writable: true,
+      configurable: true
+    });
+  }
+});
+
+// Helper to reset all mocks between tests
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
+// Create a test store with initialized data
 const createTestStore = () => {
   const rootStore = new RootStore();
   
-  // Initialize stores with test data
-  // Use runInAction to update observable properties
+  // Initialize stores with test data using runInAction to ensure MobX tracking
   runInAction(() => {
+    // Set up auth store
     rootStore.authStore.isAuthenticated = true;
     rootStore.authStore.activeProfileId = 'mock-profile-id';
     rootStore.authStore.authProfiles = [{
@@ -78,11 +105,35 @@ const createTestStore = () => {
       created: new Date(),
       lastUsed: new Date(),
     }];
+
+    // Set up API store with default parameters
+    rootStore.apiStore.currentParams = {
+      model: 'claude-3-opus-20240229',
+      temperature: 0.7,
+      max_tokens: 4096,
+      top_p: 0.9,
+    };
+    
+    rootStore.apiStore.availableModels = [
+      {
+        name: 'claude-3-opus-20240229',
+        description: 'Most powerful model',
+        contextWindow: 200000,
+        maxTokens: 4096,
+      },
+      {
+        name: 'claude-3-sonnet-20240229',
+        description: 'Balanced model',
+        contextWindow: 200000,
+        maxTokens: 4096,
+      },
+    ];
   });
   
   return rootStore;
 };
 
+// Custom render function that includes providers
 interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   store?: RootStore;
 }
@@ -91,7 +142,7 @@ const customRender = (
   ui: React.ReactElement,
   { store = createTestStore(), ...options }: CustomRenderOptions = {}
 ) => {
-  const AllTheProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
     return (
       <StoreProvider value={store}>
         <ChakraProvider theme={theme}>
@@ -112,8 +163,6 @@ export { customRender as render };
 
 // Helper functions for tests
 export const mockApiResponse = (success = true, data = {}) => {
-  const mockSendPrompt = window.electronAPI.sendPrompt as jest.Mock;
-  
   if (success) {
     mockSendPrompt.mockResolvedValueOnce({
       success: true,
@@ -141,8 +190,6 @@ export const mockApiResponse = (success = true, data = {}) => {
 };
 
 export const mockAuthenticationSuccess = (success = true) => {
-  const mockValidateApiKey = window.electronAPI.validateApiKey as jest.Mock;
-  
   if (success) {
     mockValidateApiKey.mockResolvedValueOnce({
       success: true,
@@ -196,21 +243,7 @@ export const mockConversationData = (count = 3) => {
     });
   }
   
-  const mockGetConversations = window.electronAPI.getConversations as jest.Mock;
   mockGetConversations.mockResolvedValue(conversations);
   
   return conversations;
 };
-
-// Mock browser APIs that may not be available in the test environment
-if (typeof window.URL.createObjectURL === 'undefined') {
-  Object.defineProperty(window.URL, 'createObjectURL', { value: jest.fn() });
-}
-
-// Mock for react-markdown to avoid issues with processing markdown in tests
-jest.mock('react-markdown', () => {
-  return {
-    __esModule: true,
-    default: ({ children }: { children: string }) => <div data-testid="markdown">{children}</div>,
-  };
-});
