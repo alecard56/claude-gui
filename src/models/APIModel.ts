@@ -48,7 +48,7 @@ export interface APIResponse {
  */
 export class APIModel {
   // Observable properties
-  isLoading: boolean = false;
+  isLoading = false;
   lastResponse: APIResponse | null = null;
   availableModels: ModelInfo[] = [];
   currentParams: APIParams = {

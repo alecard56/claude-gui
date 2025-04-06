@@ -67,7 +67,7 @@ export type SettingKey = keyof Settings;
 export class SettingsModel {
   // Observable properties
   settings: Settings;
-  isLoading: boolean = false;
+  isLoading = false;
   error: string | null = null;
   
   // Reference to root store for cross-store interactions

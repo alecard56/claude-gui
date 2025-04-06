@@ -25,10 +25,10 @@ export interface AuthProfile {
  */
 export class AuthenticationModel {
   // Observable properties
-  isAuthenticated: boolean = false;
-  isAuthenticating: boolean = false;
+  isAuthenticated = false;
+  isAuthenticating = false;
   authProfiles: AuthProfile[] = [];
-  activeProfileId: string = '';
+  activeProfileId = '';
   error: string | null = null;
   
   // Reference to root store for cross-store interactions

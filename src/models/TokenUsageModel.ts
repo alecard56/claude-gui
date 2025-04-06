@@ -58,7 +58,7 @@ export class TokenUsageModel {
     currentMonth: 0,
     previousMonth: 0,
   };
-  isLoading: boolean = false;
+  isLoading = false;
   error: string | null = null;
   
   // Model pricing rates (per 1M tokens)
