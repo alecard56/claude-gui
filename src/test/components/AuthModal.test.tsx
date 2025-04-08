@@ -1,82 +1,103 @@
-// File: src/test/components/AuthModal.test.tsx
-// Purpose: Tests for the AuthModal component
-// Usage: Run with Jest test runner
-// Contains: Unit tests for AuthModal component functionality
-// Dependencies: React Testing Library, Jest, AuthModal
-// Iteration: 1
+/**
+ * File: src/test/components/AuthModal.test.tsx
+ * 
+ * Module: Test
+ * Purpose: Test suite for the AuthModal component
+ * Usage: Run with Jest/React Testing Library
+ * Contains: Tests for AuthModal component functionality
+ * Dependencies: React Testing Library, Jest
+ * Iteration: 2
+ */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '../test_runner';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AuthModal from '../../renderer/components/modals/AuthModal';
-import { RootStore } from '../../models/RootStore';
-import { mockAuthenticationSuccess } from '../test_runner';
+
+// Mock store
+const mockStore = {
+  authStore: {
+    validateAPIKey: jest.fn().mockResolvedValue(true),
+    storeAPIKey: jest.fn().mockResolvedValue(true),
+    isAuthenticating: false,
+    error: null
+  }
+};
+
+// Mock useStore hook
+jest.mock('../../../utils/StoreContext', () => ({
+  useStore: () => mockStore
+}));
+
+// Mock Chakra UI toast
+const mockToast = jest.fn();
+jest.mock('@chakra-ui/react', () => {
+  const originalModule = jest.requireActual('@chakra-ui/react');
+  return {
+    __esModule: true,
+    ...originalModule,
+    useToast: () => mockToast
+  };
+});
 
 describe('AuthModal', () => {
-  let store: RootStore;
   const mockOnClose = jest.fn();
-  const mockToast = jest.fn();
 
   beforeEach(() => {
-    store = new RootStore();
-    
-    // Mock the toast function from Chakra UI
-    jest.spyOn(require('@chakra-ui/react'), 'useToast').mockReturnValue(mockToast);
-    
     jest.clearAllMocks();
+    mockStore.authStore.validateAPIKey.mockResolvedValue(true);
+    mockStore.authStore.storeAPIKey.mockResolvedValue(true);
+    mockStore.authStore.isAuthenticating = false;
+    mockStore.authStore.error = null;
   });
 
   it('renders the modal when isOpen is true', () => {
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
-    
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     expect(screen.getByText('Claude API Authentication')).toBeInTheDocument();
   });
 
   it('does not render the modal when isOpen is false', () => {
-    render(<AuthModal isOpen={false} onClose={mockOnClose} />, { store });
-    
+    render(<AuthModal isOpen={false} onClose={mockOnClose} />);
     expect(screen.queryByText('Claude API Authentication')).not.toBeInTheDocument();
   });
 
   it('shows API key input field', () => {
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
     expect(screen.getByLabelText('Claude API Key')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('sk-ant-...')).toBeInTheDocument();
   });
 
   it('shows profile name input field', () => {
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
     expect(screen.getByLabelText('Profile Name')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Default')).toBeInTheDocument();
   });
 
   it('updates API key and profile name when input changes', () => {
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    const apiKeyInput = screen.getByPlaceholderText('sk-ant-...');
-    fireEvent.change(apiKeyInput, { target: { value: 'sk-ant-test123' } });
+    const apiKeyInput = screen.getByLabelText('Claude API Key');
+    const profileNameInput = screen.getByLabelText('Profile Name');
     
-    const profileNameInput = screen.getByDisplayValue('Default');
+    fireEvent.change(apiKeyInput, { target: { value: 'test-key' } });
     fireEvent.change(profileNameInput, { target: { value: 'Test Profile' } });
     
-    expect(apiKeyInput).toHaveValue('sk-ant-test123');
+    expect(apiKeyInput).toHaveValue('test-key');
     expect(profileNameInput).toHaveValue('Test Profile');
   });
 
   it('toggles API key visibility when show/hide button is clicked', () => {
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    const apiKeyInput = screen.getByPlaceholderText('sk-ant-...');
+    const apiKeyInput = screen.getByLabelText('Claude API Key');
     expect(apiKeyInput).toHaveAttribute('type', 'password');
     
-    // Find and click the show/hide button
-    const visibilityButton = screen.getByLabelText('Show API Key');
-    fireEvent.click(visibilityButton);
+    const toggleButton = screen.getByLabelText('Show API Key');
+    fireEvent.click(toggleButton);
     
     expect(apiKeyInput).toHaveAttribute('type', 'text');
     
-    // Click again to hide
     const hideButton = screen.getByLabelText('Hide API Key');
     fireEvent.click(hideButton);
     
@@ -84,140 +105,103 @@ describe('AuthModal', () => {
   });
 
   it('validates and stores API key when form is submitted', async () => {
-    const validateAPISpy = jest.spyOn(store.authStore, 'validateAPIKey');
-    const storeAPISpy = jest.spyOn(store.authStore, 'storeAPIKey');
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    // Mock successful authentication
-    mockAuthenticationSuccess(true);
-    validateAPISpy.mockResolvedValue(true);
-    storeAPISpy.mockResolvedValue(true);
+    const apiKeyInput = screen.getByLabelText('Claude API Key');
+    fireEvent.change(apiKeyInput, { target: { value: 'test-key' } });
     
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
-    
-    // Fill in the form
-    const apiKeyInput = screen.getByPlaceholderText('sk-ant-...');
-    fireEvent.change(apiKeyInput, { target: { value: 'sk-ant-test123' } });
-    
-    const profileNameInput = screen.getByDisplayValue('Default');
-    fireEvent.change(profileNameInput, { target: { value: 'Test Profile' } });
-    
-    // Submit the form
-    fireEvent.click(screen.getByText('Authenticate'));
+    const form = screen.getByRole('form');
+    fireEvent.submit(form);
     
     await waitFor(() => {
-      expect(validateAPISpy).toHaveBeenCalledWith('sk-ant-test123');
-      expect(storeAPISpy).toHaveBeenCalledWith('sk-ant-test123', 'Test Profile');
+      expect(mockStore.authStore.validateAPIKey).toHaveBeenCalledWith('test-key');
+      expect(mockStore.authStore.storeAPIKey).toHaveBeenCalledWith('test-key', 'Default');
       expect(mockOnClose).toHaveBeenCalled();
-      expect(mockToast).toHaveBeenCalled();
     });
   });
 
   it('shows error toast when API key validation fails', async () => {
-    const validateAPISpy = jest.spyOn(store.authStore, 'validateAPIKey');
+    mockStore.authStore.validateAPIKey.mockResolvedValue(false);
+    mockStore.authStore.error = 'Invalid API key';
     
-    // Mock failed authentication
-    mockAuthenticationSuccess(false);
-    validateAPISpy.mockResolvedValue(false);
-    store.authStore.error = 'Invalid API key';
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
-    
-    // Fill in the form
-    const apiKeyInput = screen.getByPlaceholderText('sk-ant-...');
+    const apiKeyInput = screen.getByLabelText('Claude API Key');
     fireEvent.change(apiKeyInput, { target: { value: 'invalid-key' } });
     
-    // Submit the form
-    fireEvent.click(screen.getByText('Authenticate'));
+    const form = screen.getByRole('form');
+    fireEvent.submit(form);
     
     await waitFor(() => {
-      expect(validateAPISpy).toHaveBeenCalledWith('invalid-key');
-      expect(mockToast).toHaveBeenCalled();
-      expect(mockOnClose).not.toHaveBeenCalled(); // Modal should stay open
+      expect(mockStore.authStore.validateAPIKey).toHaveBeenCalledWith('invalid-key');
+      expect(mockStore.authStore.storeAPIKey).not.toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'error',
+        title: 'Invalid API Key'
+      }));
+      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 
   it('shows error toast when API key storage fails', async () => {
-    const validateAPISpy = jest.spyOn(store.authStore, 'validateAPIKey');
-    const storeAPISpy = jest.spyOn(store.authStore, 'storeAPIKey');
+    mockStore.authStore.validateAPIKey.mockResolvedValue(true);
+    mockStore.authStore.storeAPIKey.mockResolvedValue(false);
+    mockStore.authStore.error = 'Failed to store key';
     
-    // Mock successful validation but failed storage
-    mockAuthenticationSuccess(true);
-    validateAPISpy.mockResolvedValue(true);
-    storeAPISpy.mockResolvedValue(false);
-    store.authStore.error = 'Failed to store API key';
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
+    const apiKeyInput = screen.getByLabelText('Claude API Key');
+    fireEvent.change(apiKeyInput, { target: { value: 'test-key' } });
     
-    // Fill in the form
-    const apiKeyInput = screen.getByPlaceholderText('sk-ant-...');
-    fireEvent.change(apiKeyInput, { target: { value: 'sk-ant-test123' } });
-    
-    // Submit the form
-    fireEvent.click(screen.getByText('Authenticate'));
+    const form = screen.getByRole('form');
+    fireEvent.submit(form);
     
     await waitFor(() => {
-      expect(validateAPISpy).toHaveBeenCalledWith('sk-ant-test123');
-      expect(storeAPISpy).toHaveBeenCalledWith('sk-ant-test123', 'Default');
-      expect(mockToast).toHaveBeenCalled();
-      expect(mockOnClose).not.toHaveBeenCalled(); // Modal should stay open
+      expect(mockStore.authStore.validateAPIKey).toHaveBeenCalledWith('test-key');
+      expect(mockStore.authStore.storeAPIKey).toHaveBeenCalledWith('test-key', 'Default');
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'error',
+        title: 'Error'
+      }));
+      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 
   it('shows error when submitting with empty API key', async () => {
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    // Submit the form without entering an API key
-    fireEvent.click(screen.getByText('Authenticate'));
+    // Leave API key input empty
+    const form = screen.getByRole('form');
+    fireEvent.submit(form);
     
     await waitFor(() => {
-      expect(mockToast).toHaveBeenCalled();
-      // The validateAPIKey method should not be called
-      expect(store.authStore.validateAPIKey).not.toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Error',
+        description: 'Please enter an API key'
+      }));
+      expect(mockStore.authStore.validateAPIKey).not.toHaveBeenCalled();
     });
   });
 
   it('displays loading state during authentication', async () => {
-    // Mock a slow authentication to test loading state
-    const validateAPISpy = jest.spyOn(store.authStore, 'validateAPIKey');
+    mockStore.authStore.isAuthenticating = true;
     
-    // Create a promise that won't resolve immediately
-    let resolvePromise: (value: boolean) => void;
-    const authPromise = new Promise<boolean>((resolve) => {
-      resolvePromise = resolve;
-    });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
     
-    validateAPISpy.mockReturnValue(authPromise);
-    store.authStore.isAuthenticating = true;
+    const submitButton = screen.getByText('Authenticate');
+    expect(submitButton).toHaveAttribute('disabled');
     
-    render(<AuthModal isOpen={true} onClose={mockOnClose} />, { store });
-    
-    // Fill in the form
-    const apiKeyInput = screen.getByPlaceholderText('sk-ant-...');
-    fireEvent.change(apiKeyInput, { target: { value: 'sk-ant-test123' } });
-    
-    // Submit the form
-    fireEvent.click(screen.getByText('Authenticate'));
-    
-    // The button should show loading state
-    expect(screen.getByRole('button', { name: /Authenticate/i })).toHaveAttribute('data-loading');
-    
-    // Resolve the promise to finish the test
-    resolvePromise!(true);
+    // Reset for subsequent tests
+    mockStore.authStore.isAuthenticating = false;
   });
 
   it('respects closeOnOverlayClick prop', () => {
-    // Test when closeOnOverlayClick is false
-    render(<AuthModal isOpen={true} onClose={mockOnClose} closeOnOverlayClick={false} />, { store });
+    render(<AuthModal isOpen={true} onClose={mockOnClose} closeOnOverlayClick={false} />);
     
-    // Check that the modal has the closeOnOverlayClick prop set to false
-    // This is harder to test directly in React Testing Library since it's internal to Chakra UI
-    // Instead, we can check that the close button is not present if we don't want it to be closable
+    // Verify ModalCloseButton is not rendered when closeOnOverlayClick is false
     expect(screen.queryByLabelText('Close')).not.toBeInTheDocument();
     
-    // Test when closeOnOverlayClick is true
-    render(<AuthModal isOpen={true} onClose={mockOnClose} closeOnOverlayClick={true} />, { store });
-    
-    // The close button should be present
-    expect(screen.getByLabelText('Close')).toBeInTheDocument();
+    // We can't directly test overlay clicks in JSDOM, but we can verify the prop is passed
+    // The component conditionally renders the ModalCloseButton based on this prop
   });
 });

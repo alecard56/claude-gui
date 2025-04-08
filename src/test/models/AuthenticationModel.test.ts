@@ -3,11 +3,12 @@
 // Usage: Run with Jest test runner
 // Contains: Unit tests for AuthenticationModel methods
 // Dependencies: Jest, RootStore, AuthenticationModel
-// Iteration: 1
+// Iteration: 2
 
 import { RootStore } from '../../models/RootStore';
 import { AuthenticationModel } from '../../models/AuthenticationModel';
 import { mockAuthenticationSuccess } from '../test_runner';
+import { runInAction } from 'mobx';
 
 // Mock the electronAPI to avoid actual API calls
 const originalWindow = { ...window };
@@ -146,36 +147,72 @@ describe('AuthenticationModel', () => {
   describe('getActiveProfile', () => {
     it('should return the active profile if available', async () => {
       // Set up an active profile
-      await authModel.storeAPIKey('test-api-key', 'Test Profile');
+      window.electronAPI.storeApiKey.mockResolvedValue({ success: true });
+      const storeAPISpy = jest.spyOn(authModel, 'storeAPIKey').mockResolvedValue(true);
+      
+      // Manually set the profile data since storeAPIKey won't run the full implementation in test
+      runInAction(() => {
+        authModel.activeProfileId = 'test-profile-id';
+        authModel.authProfiles = [{
+          id: 'test-profile-id',
+          name: 'Test Profile',
+          keyLastDigits: '1234',
+          created: new Date(),
+          lastUsed: new Date()
+        }];
+      });
       
       const profile = authModel.getActiveProfile();
       
-      expect(profile).not.toBe(null);
+      expect(profile).not.toBeNull();
       expect(profile?.name).toBe('Test Profile');
     });
 
     it('should return null if no active profile', () => {
+      // Ensure no active profile
+      runInAction(() => {
+        authModel.activeProfileId = '';
+        authModel.authProfiles = [];
+      });
+      
       const profile = authModel.getActiveProfile();
       
-      expect(profile).toBe(null);
+      expect(profile).toBeNull();
     });
   });
 
   describe('switchProfile', () => {
     it('should switch to a different profile', async () => {
       // Set up profiles
-      await authModel.storeAPIKey('api-key-1', 'Profile 1');
-      const profileId1 = authModel.activeProfileId;
+      window.electronAPI.setSetting.mockResolvedValue({ success: true });
       
-      await authModel.storeAPIKey('api-key-2', 'Profile 2');
-      const profileId2 = authModel.activeProfileId;
+      // Manually set up two profiles
+      runInAction(() => {
+        authModel.authProfiles = [
+          {
+            id: 'profile-1',
+            name: 'Profile 1',
+            keyLastDigits: '1234',
+            created: new Date(),
+            lastUsed: new Date()
+          },
+          {
+            id: 'profile-2',
+            name: 'Profile 2',
+            keyLastDigits: '5678',
+            created: new Date(),
+            lastUsed: new Date()
+          }
+        ];
+        authModel.activeProfileId = 'profile-2';
+      });
       
-      // Switch back to first profile
-      const result = await authModel.switchProfile(profileId1);
+      // Switch to the first profile
+      const result = await authModel.switchProfile('profile-1');
       
       expect(result).toBe(true);
-      expect(authModel.activeProfileId).toBe(profileId1);
-      expect(window.electronAPI.setSetting).toHaveBeenCalledWith('auth.activeProfileId', profileId1);
+      expect(authModel.activeProfileId).toBe('profile-1');
+      expect(window.electronAPI.setSetting).toHaveBeenCalledWith('auth.activeProfileId', 'profile-1');
     });
 
     it('should handle non-existent profile', async () => {
@@ -201,10 +238,24 @@ describe('AuthenticationModel', () => {
   describe('deleteProfile', () => {
     it('should delete a profile', async () => {
       // Set up a profile
-      await authModel.storeAPIKey('test-api-key', 'Test Profile');
-      const profileId = authModel.activeProfileId;
+      window.electronAPI.setSetting.mockResolvedValue({ success: true });
       
-      const result = await authModel.deleteProfile(profileId);
+      // Manually set up a profile
+      runInAction(() => {
+        authModel.authProfiles = [
+          {
+            id: 'test-profile',
+            name: 'Test Profile',
+            keyLastDigits: '1234',
+            created: new Date(),
+            lastUsed: new Date()
+          }
+        ];
+        authModel.activeProfileId = 'test-profile';
+        authModel.isAuthenticated = true;
+      });
+      
+      const result = await authModel.deleteProfile('test-profile');
       
       expect(result).toBe(true);
       expect(authModel.authProfiles.length).toBe(0);
@@ -228,16 +279,26 @@ describe('AuthenticationModel', () => {
   describe('checkAuthentication', () => {
     it('should verify authentication with valid key', async () => {
       // Set up mock validation
-      window.electronAPI.validateApiKey = jest.fn().mockResolvedValue({
+      window.electronAPI.validateApiKey.mockResolvedValue({
         success: true,
         status: 200,
       });
+      window.electronAPI.getApiKey.mockResolvedValue('test-api-key');
+      window.electronAPI.getActiveProfile.mockResolvedValue({
+        id: 'test-profile',
+        name: 'Test Profile',
+        keyLastDigits: '1234',
+        created: new Date(),
+        lastUsed: new Date(),
+      });
       
-      // Set up a profile
-      await authModel.storeAPIKey('test-api-key', 'Test Profile');
+      // Spy on validateAPIKey to return success
+      jest.spyOn(authModel, 'validateAPIKey').mockResolvedValue(true);
       
       // Reset authentication state
-      authModel.isAuthenticated = false;
+      runInAction(() => {
+        authModel.isAuthenticated = false;
+      });
       
       const result = await authModel.checkAuthentication();
       
@@ -247,13 +308,24 @@ describe('AuthenticationModel', () => {
 
     it('should handle invalid or expired key', async () => {
       // Set up mock validation to fail
-      window.electronAPI.validateApiKey = jest.fn().mockResolvedValue({
+      window.electronAPI.validateApiKey.mockResolvedValue({
         success: false,
         error: 'Invalid API key',
       });
+      window.electronAPI.getApiKey.mockResolvedValue('invalid-api-key');
+      window.electronAPI.getActiveProfile.mockResolvedValue({
+        id: 'test-profile',
+        name: 'Test Profile',
+        keyLastDigits: '1234',
+      });
       
-      // Set up a profile
-      await authModel.storeAPIKey('test-api-key', 'Test Profile');
+      // Mock validateAPIKey to return false for invalid key
+      jest.spyOn(authModel, 'validateAPIKey').mockResolvedValue(false);
+      
+      // Set initial state
+      runInAction(() => {
+        authModel.isAuthenticated = true; // Will become false after check
+      });
       
       const result = await authModel.checkAuthentication();
       
@@ -264,8 +336,21 @@ describe('AuthenticationModel', () => {
 
   describe('logout', () => {
     it('should clear authentication state', async () => {
-      // Set up a profile
-      await authModel.storeAPIKey('test-api-key', 'Test Profile');
+      // Set up a profile and authentication
+      window.electronAPI.setSetting.mockResolvedValue({ success: true });
+      
+      // Set authentication state
+      runInAction(() => {
+        authModel.isAuthenticated = true;
+        authModel.activeProfileId = 'test-profile';
+        authModel.authProfiles = [{
+          id: 'test-profile',
+          name: 'Test Profile',
+          keyLastDigits: '1234',
+          created: new Date(),
+          lastUsed: new Date()
+        }];
+      });
       
       const result = await authModel.logout();
       

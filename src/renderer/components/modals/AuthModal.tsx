@@ -1,9 +1,13 @@
-// File: src/renderer/components/modals/AuthModal.tsx
-// Purpose: Modal for API key authentication
-// Usage: Displayed when user needs to authenticate
-// Contains: API key input form, validation, and profile creation
-// Dependencies: React, Chakra UI, MobX
-// Iteration: 1
+/**
+ * File: src/renderer/components/modals/AuthModal.tsx
+ * 
+ * Module: View
+ * Purpose: Modal for API key authentication
+ * Usage: Displayed when user needs to authenticate
+ * Contains: API key input form, validation, and profile creation
+ * Dependencies: React, Chakra UI, MobX
+ * Iteration: 2
+ */
 
 import React, { useState } from 'react';
 import {
@@ -17,15 +21,15 @@ import {
   Button,
   FormControl,
   FormLabel,
-  Input,
   FormHelperText,
-  Text,
-  Alert,
-  AlertIcon,
-  useToast,
-  VStack,
+  Input,
   InputGroup,
   InputRightElement,
+  VStack,
+  Alert,
+  AlertIcon,
+  Text,
+  useToast,
   IconButton,
 } from '@chakra-ui/react';
 import { ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
@@ -138,6 +142,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
                   placeholder="Default"
+                  aria-label="Profile Name"
                 />
                 <FormHelperText>
                   A name for this API key profile
@@ -152,6 +157,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="sk-ant-..."
+                    aria-label="Claude API Key"
                   />
                   <InputRightElement>
                     <IconButton
